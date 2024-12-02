@@ -121,8 +121,36 @@
                 tiempoPausadoOriginal: 0, // Guardar el valor original al pausar
             });
 
+            // Ordenar las peticiones después de agregar una nueva
+            ordenarPeticiones();
+
             document.getElementById("form-peticion").reset();
             actualizarPeticiones();
+        }
+
+        function ordenarPeticiones() {
+            peticiones.sort((a, b) => {
+                // Primero, los "retrasados" de mayor a menor retraso
+                if (a.estado === "retrasado" && b.estado !== "retrasado") return -1;
+                if (b.estado === "retrasado" && a.estado !== "retrasado") return 1;
+
+                // Luego, los "a-tiempo" de menor a mayor tiempo restante
+                if (a.estado === "a-tiempo" && b.estado !== "a-tiempo") return 1;
+                if (b.estado === "a-tiempo" && a.estado !== "a-tiempo") return -1;
+
+                // Si son del mismo estado, ordenar por el tiempo (en función de "retrasado" o "a-tiempo")
+                if (a.estado === "retrasado" && b.estado === "retrasado") {
+                    return b.tiempoDetenido - a.tiempoDetenido;
+                }
+                return a.tiempoRestante - b.tiempoRestante;
+            });
+
+            // Mover las pausadas al final
+            const pausadas = peticiones.filter(peticion => peticion.pausado);
+            const noPausadas = peticiones.filter(peticion => !peticion.pausado);
+            // Colocar primero las no pausadas y luego las pausadas
+            peticiones.length = 0;  // Vaciar el array
+            peticiones.push(...noPausadas, ...pausadas);
         }
 
         function actualizarPeticiones() {
@@ -206,6 +234,8 @@
             }
 
             peticion.pausado = !peticion.pausado;
+            // Ordenar después de pausar o despausar
+            ordenarPeticiones();
             actualizarPeticiones();
         }
 
