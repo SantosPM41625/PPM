@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seguimiento Peticiones</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        table {
+            width: 90%;
+            margin: 0 auto;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .retrasado {
+            color: red;
+            font-weight: bold;
+        }
+        .a-tiempo {
+            color: green;
+        }
+        .form-container {
+            margin-bottom: 20px;
+        }
+        .reloj {
+            font-size: 40px; /* Ajustado al tamaño anterior */
+            font-weight: bold;
+        }
+        .fecha {
+            font-size: 18px;
+            margin-top: 5px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>Seguimiento Peticiones</h1>
+    
+    <!-- Reloj y fecha -->
+    <div class="reloj">
+        <span id="hora"></span>
+    </div>
+    <div class="fecha">
+        <span id="fecha-hoy"></span>
+    </div>
+
+    <!-- Formulario de entrada para peticiones (siempre visible) -->
+    <div class="form-container" id="formulario-peticion">
+        <h2>Agregar</h2>
+        <form id="form-peticion" onsubmit="agregarPeticion(event)">
+            <label for="solicitante">Solicitante:</label>
+            <input type="text" id="solicitante" required><br><br>
+
+            <label for="solicitado">Solicitado:</label>
+            <input type="text" id="solicitado" required><br><br>
+
+            <label for="descripcion">Descripción:</label>
+            <input type="text" id="descripcion" required><br><br>
+
+            <label for="fecha">Fecha y Hora:</label>
+            <input type="datetime-local" id="fecha" required><br><br>
+
+            <button type="submit">Agregar</button> <!-- El botón solo tiene el texto "Agregar" -->
+        </form>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Hora y Día Solicitado</th>
+                <th>Solicitante</th>
+                <th>Solicitado</th>
+                <th>Descripción</th>
+                <th>Día Necesario</th>
+                <th>Hora Necesaria</th>
+                <th>Estado</th>
+                <th>Pausar</th>
+            </tr>
+        </thead>
+        <tbody id="tabla-peticiones">
+            <!-- Aquí se llenarán las peticiones dinámicamente -->
+        </tbody>
+    </table>
+
+    <script>
+        // Lista de peticiones con su estado, hora de salida y tiempos
+        const peticiones = [];
+
+        // Función para agregar una petición
+        function agregarPeticion(event) {
+            event.preventDefault(); // Evitar el envío del formulario
+
+            const solicitante = document.getElementById("solicitante").value;
+            const solicitado = document.getElementById("solicitado").value;
+            const descripcion = document.getElementById("descripcion").value;
+            const fecha = document.getElementById("fecha").value;
+            const ahora = new Date();
+            const horaSolicitud = new Date(); // Hora actual como hora de solicitud
+            const horaSalida = new Date(fecha); // Convertir a formato Date
+
+            // Asignar estado inicial según la fecha y hora (se calculará continuamente)
+            let estado = horaSalida > ahora ? "a-tiempo" : "retrasado";
+
+            // Agregar petición a la lista
+            peticiones.push({
+                solicitante: solicitante,
+                solicitado: solicitado,
+                descripcion: descripcion,
+                horaSolicitud: horaSolicitud, // Guardar la hora de solicitud como objeto Date
+                salida: horaSalida.toISOString(),
+                estado: estado,
+                pausado: false,
+                tiempoRestante: 0,
+                tiempoDetenido: 0,
+                tiempoInicioPausa: 0
+            });
+
+            // Limpiar campos del formulario
+            document.getElementById("form-peticion").reset();
+
+            // Actualizar la tabla de peticiones
+            actualizarPeticiones();
+        }
+
+        // Función para actualizar la tabla de peticiones
+        function actualizarPeticiones() {
+            const tabla = document.getElementById("tabla-peticiones");
+            tabla.innerHTML = ""; // Limpiar la tabla
+
+            const ahora = new Date(); // Hora actual
+
+            peticiones.forEach((peticion, index) => {
+                const horaSalida = new Date(peticion.salida);
+                let diferencia = (horaSalida - ahora) / 1000; // Diferencia en segundos
+
+                // Verificar el estado en cada actualización
+                if (horaSalida <= ahora) {
+                    peticion.estado = "retrasado"; // Si la hora de salida ya pasó, la petición está retrasada
+                } else {
+                    peticion.estado = "a-tiempo"; // Si la petición está a tiempo, mantener el estado
+                }
+
+                let estado;
+                // Verificar si la petición está pausada
+                if (peticion.pausado) {
+                    // Si la petición está pausada, mostrar el tiempo detenido
+                    const tiempoPausado = peticion.estado === "a-tiempo" ? peticion.tiempoRestante : peticion.tiempoDetenido;
+                    const horas = Math.floor(tiempoPausado / 3600);
+                    const minutos = Math.floor((tiempoPausado % 3600) / 60);
+                    const segundos = Math.floor(tiempoPausado % 60);
+                    estado = `<span class="${peticion.estado}">${horas}h ${minutos}m ${segundos}s</span>`;
+                } else {
+                    // Si no está pausada, mostrar el tiempo restante o el retraso
+                    if (peticion.estado === "a-tiempo" && diferencia > 0) {
+                        const horas = Math.floor(diferencia / 3600);
+                        const minutos = Math.floor((diferencia % 3600) / 60);
+                        const segundos = Math.floor(diferencia % 60);
+                        estado = `<span class="a-tiempo">${horas}h ${minutos}m ${segundos}s</span>`;
+                        peticion.tiempoRestante = diferencia; // Guardar el tiempo restante
+                    } else if (peticion.estado === "retrasado") {
+                        const retraso = Math.abs(diferencia);
+                        const horas = Math.floor(retraso / 3600);
+                        const minutos = Math.floor((retraso % 3600) / 60);
+                        const segundos = Math.floor(retraso % 60);
+                        estado = `<span class="retrasado">${horas}h ${minutos}m ${segundos}s</span>`;
+                        peticion.tiempoDetenido = retraso; // Guardar el retraso
+                    }
+                }
+
+                // Crear fila para cada petición
+                const fila = `
+                    <tr>
+                        <td>${formatearFechaHora(peticion.horaSolicitud)}</td>
+                        <td>${peticion.solicitante}</td>
+                        <td>${peticion.solicitado}</td>
+                        <td>${peticion.descripcion}</td>
+                        <td>${horaSalida.toLocaleDateString()}</td>
+                        <td>${horaSalida.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                        <td>${estado}</td>
+                        <td><input type="checkbox" id="pausar-${index}" ${peticion.pausado ? "checked" : ""} onclick="pausarPeticion(${index})"></td>
+                    </tr>
+                `;
+                tabla.innerHTML += fila; // Agregar la fila a la tabla
+            });
+        }
+
+        // Función para formatear la fecha y hora solicitada
+        function formatearFechaHora(fecha) {
+            const options = { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true };
+            return new Date(fecha).toLocaleString('es-ES', options);
+        }
+
+        // Función para pausar la petición
+        function pausarPeticion(index) {
+            const peticion = peticiones[index];
+            const ahora = new Date();
+
+            if (peticion.pausado) {
+                // Si está pausado, no hacer nada más
+                if (peticion.estado === "a-tiempo") {
+                    peticion.tiempoRestante += Math.floor((ahora - peticion.tiempoInicioPausa) / 1000); // Actualizar el tiempo restante
+                } else if (peticion.estado === "retrasado") {
+                    peticion.tiempoDetenido += Math.floor((ahora - peticion.tiempoInicioPausa) / 1000); // Actualizar el tiempo de retraso
+                }
+            } else {
+                // Cuando se pausa, guarda la hora de inicio del paro
+                peticion.tiempoInicioPausa = ahora.getTime();
+            }
+
+            peticion.pausado = !peticion.pausado; // Cambiar el estado de pausado
+            actualizarPeticiones(); // Actualizar la tabla
+        }
+
+        // Actualizar la tabla cada segundo
+        setInterval(actualizarPeticiones, 1000);
+
+        // Función para actualizar la hora y fecha actual
+        function actualizarReloj() {
+            const ahora = new Date();
+            document.getElementById('hora').textContent = ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            document.getElementById('fecha-hoy').textContent = `${new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(ahora)}`;
+        }
+
+        // Llamar a la función para actualizar el reloj cada segundo
+        setInterval(actualizarReloj, 1000);
+        actualizarReloj(); // Ejecutar una vez al inicio
+    </script>
+</body>
+</html>
