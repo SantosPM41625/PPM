@@ -8,74 +8,26 @@
         /* Tu estilo aquí */
     </style>
     <!-- Agregar el SDK de Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database.js"></script>
-</head>
-<body>
-    <h1>Seguimiento Peticiones</h1>
-    
-    <!-- Reloj y fecha -->
-    <div class="reloj">
-        <span id="hora"></span>
-    </div>
-    <div class="fecha">
-        <span id="fecha-hoy"></span>
-    </div>
-
-    <!-- Formulario de entrada para peticiones (siempre visible) -->
-    <div class="form-container" id="formulario-peticion">
-        <h2>Agregar</h2>
-        <form id="form-peticion" onsubmit="agregarPeticion(event)">
-            <label for="solicitante">Solicitante:</label>
-            <input type="text" id="solicitante" required><br><br>
-
-            <label for="solicitado">Solicitado:</label>
-            <input type="text" id="solicitado" required><br><br>
-
-            <label for="descripcion">Descripción:</label>
-            <input type="text" id="descripcion" required><br><br>
-
-            <label for="fecha">Fecha y Hora:</label>
-            <input type="datetime-local" id="fecha" required><br><br>
-
-            <button type="submit">Agregar</button> <!-- El botón solo tiene el texto "Agregar" -->
-        </form>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Hora y Día Solicitado</th>
-                <th>Solicitante</th>
-                <th>Solicitado</th>
-                <th>Descripción</th>
-                <th>Día Necesario</th>
-                <th>Hora Necesaria</th>
-                <th>Estado</th>
-                <th>Pausar</th>
-            </tr>
-        </thead>
-        <tbody id="tabla-peticiones">
-            <!-- Aquí se llenarán las peticiones dinámicamente -->
-        </tbody>
-    </table>
-
-    <script>
-        // Tu configuración de Firebase
+    <script type="module">
+        // Importar Firebase desde el SDK modular
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js";
+        import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/9.6.0/firebase-database.js";
+        
+        // Configuración de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyB48xrH1QK8-6qd-YGo35v2Cg-gGuKUOOw",
             authDomain: "pm41625-e21b1.firebaseapp.com",
             databaseURL: "https://pm41625-e21b1-default-rtdb.firebaseio.com",
             projectId: "pm41625-e21b1",
-            storageBucket: "pm41625-e21b1.firebasestorage.app",
+            storageBucket: "pm41625-e21b1.appspot.com",
             messagingSenderId: "959371187087",
             appId: "1:959371187087:web:2f04847d8e6010913731fa",
             measurementId: "G-CLEDJ8C6VG"
         };
 
         // Inicializar Firebase
-        const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.database(app);
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
 
         // Función para agregar una petición en Firebase
         function agregarPeticion(event) {
@@ -92,8 +44,8 @@
             let estado = horaSalida > ahora ? "a-tiempo" : "retrasado";
 
             // Crear un ID único para la petición
-            const nuevaPeticionRef = db.ref('peticiones').push();
-            nuevaPeticionRef.set({
+            const nuevaPeticionRef = push(ref(db, 'peticiones'));
+            set(nuevaPeticionRef, {
                 solicitante: solicitante,
                 solicitado: solicitado,
                 descripcion: descripcion,
@@ -116,8 +68,8 @@
 
         // Función para escuchar cambios en las peticiones en tiempo real
         function escucharPeticiones() {
-            const peticionesRef = db.ref('peticiones');
-            peticionesRef.on('value', (snapshot) => {
+            const peticionesRef = ref(db, 'peticiones');
+            onValue(peticionesRef, (snapshot) => {
                 const peticiones = snapshot.val();
                 actualizarPeticiones(peticiones);
             });
@@ -130,6 +82,7 @@
 
             const ahora = new Date();
 
+            // Iterar sobre las peticiones y mostrarlas en la tabla
             Object.keys(peticiones).forEach((key) => {
                 const peticion = peticiones[key];
                 const horaSalida = new Date(peticion.salida);
@@ -199,5 +152,53 @@
         setInterval(actualizarReloj, 1000);
         actualizarReloj(); // Ejecutar una vez al inicio
     </script>
+</head>
+<body>
+    <h1>Seguimiento Peticiones</h1>
+    
+    <!-- Reloj y fecha -->
+    <div class="reloj">
+        <span id="hora"></span>
+    </div>
+    <div class="fecha">
+        <span id="fecha-hoy"></span>
+    </div>
+
+    <!-- Formulario de entrada para peticiones (siempre visible) -->
+    <div class="form-container" id="formulario-peticion">
+        <h2>Agregar</h2>
+        <form id="form-peticion" onsubmit="agregarPeticion(event)">
+            <label for="solicitante">Solicitante:</label>
+            <input type="text" id="solicitante" required><br><br>
+
+            <label for="solicitado">Solicitado:</label>
+            <input type="text" id="solicitado" required><br><br>
+
+            <label for="descripcion">Descripción:</label>
+            <input type="text" id="descripcion" required><br><br>
+
+            <label for="fecha">Fecha y Hora:</label>
+            <input type="datetime-local" id="fecha" required><br><br>
+
+            <button type="submit">Agregar</button>
+        </form>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Hora y Día Solicitado</th>
+                <th>Solicitante</th>
+                <th>Solicitado</th>
+                <th>Descripción</th>
+                <th>Día Necesario</th>
+                <th>Hora Necesaria</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody id="tabla-peticiones">
+            <!-- Aquí se llenarán las peticiones dinámicamente -->
+        </tbody>
+    </table>
 </body>
 </html>
