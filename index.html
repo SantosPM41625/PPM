@@ -5,43 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Seguimiento Peticiones</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 20px;
-        }
-        table {
-            width: 90%;
-            margin: 0 auto;
-            border-collapse: collapse;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 10px;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-        .retrasado {
-            color: red;
-            font-weight: bold;
-        }
-        .a-tiempo {
-            color: green;
-        }
-        .form-container {
-            margin-bottom: 20px;
-        }
-        .reloj {
-            font-size: 40px; /* Ajustado al tamaño anterior */
-            font-weight: bold;
-        }
-        .fecha {
-            font-size: 18px;
-            margin-top: 5px;
-            color: #555;
-        }
+        /* Tu estilo aquí */
     </style>
+    <!-- Agregar el SDK de Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database.js"></script>
 </head>
 <body>
     <h1>Seguimiento Peticiones</h1>
@@ -93,10 +61,23 @@
     </table>
 
     <script>
-        // Lista de peticiones con su estado, hora de salida y tiempos
-        const peticiones = [];
+        // Tu configuración de Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB48xrH1QK8-6qd-YGo35v2Cg-gGuKUOOw",
+            authDomain: "pm41625-e21b1.firebaseapp.com",
+            databaseURL: "https://pm41625-e21b1-default-rtdb.firebaseio.com",
+            projectId: "pm41625-e21b1",
+            storageBucket: "pm41625-e21b1.firebasestorage.app",
+            messagingSenderId: "959371187087",
+            appId: "1:959371187087:web:2f04847d8e6010913731fa",
+            measurementId: "G-CLEDJ8C6VG"
+        };
 
-        // Función para agregar una petición
+        // Inicializar Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.database(app);
+
+        // Función para agregar una petición en Firebase
         function agregarPeticion(event) {
             event.preventDefault(); // Evitar el envío del formulario
 
@@ -105,79 +86,85 @@
             const descripcion = document.getElementById("descripcion").value;
             const fecha = document.getElementById("fecha").value;
             const ahora = new Date();
-            const horaSolicitud = new Date(); // Hora actual como hora de solicitud
-            const horaSalida = new Date(fecha); // Convertir a formato Date
+            const horaSolicitud = new Date();
+            const horaSalida = new Date(fecha);
 
-            // Asignar estado inicial según la fecha y hora (se calculará continuamente)
             let estado = horaSalida > ahora ? "a-tiempo" : "retrasado";
 
-            // Agregar petición a la lista
-            peticiones.push({
+            // Crear un ID único para la petición
+            const nuevaPeticionRef = db.ref('peticiones').push();
+            nuevaPeticionRef.set({
                 solicitante: solicitante,
                 solicitado: solicitado,
                 descripcion: descripcion,
-                horaSolicitud: horaSolicitud, // Guardar la hora de solicitud como objeto Date
+                horaSolicitud: horaSolicitud.toISOString(),
                 salida: horaSalida.toISOString(),
                 estado: estado,
                 pausado: false,
                 tiempoRestante: 0,
                 tiempoDetenido: 0,
                 tiempoInicioPausa: 0
+            }).then(() => {
+                console.log("Petición agregada correctamente.");
+            }).catch((error) => {
+                console.error("Error al agregar la petición: ", error);
             });
 
             // Limpiar campos del formulario
             document.getElementById("form-peticion").reset();
+        }
 
-            // Actualizar la tabla de peticiones
-            actualizarPeticiones();
+        // Función para escuchar cambios en las peticiones en tiempo real
+        function escucharPeticiones() {
+            const peticionesRef = db.ref('peticiones');
+            peticionesRef.on('value', (snapshot) => {
+                const peticiones = snapshot.val();
+                actualizarPeticiones(peticiones);
+            });
         }
 
         // Función para actualizar la tabla de peticiones
-        function actualizarPeticiones() {
+        function actualizarPeticiones(peticiones) {
             const tabla = document.getElementById("tabla-peticiones");
             tabla.innerHTML = ""; // Limpiar la tabla
 
-            const ahora = new Date(); // Hora actual
+            const ahora = new Date();
 
-            peticiones.forEach((peticion, index) => {
+            Object.keys(peticiones).forEach((key) => {
+                const peticion = peticiones[key];
                 const horaSalida = new Date(peticion.salida);
-                let diferencia = (horaSalida - ahora) / 1000; // Diferencia en segundos
+                let diferencia = (horaSalida - ahora) / 1000;
 
-                // Verificar el estado en cada actualización
                 if (horaSalida <= ahora) {
-                    peticion.estado = "retrasado"; // Si la hora de salida ya pasó, la petición está retrasada
+                    peticion.estado = "retrasado";
                 } else {
-                    peticion.estado = "a-tiempo"; // Si la petición está a tiempo, mantener el estado
+                    peticion.estado = "a-tiempo";
                 }
 
                 let estado;
-                // Verificar si la petición está pausada
                 if (peticion.pausado) {
-                    // Si la petición está pausada, mostrar el tiempo detenido
                     const tiempoPausado = peticion.estado === "a-tiempo" ? peticion.tiempoRestante : peticion.tiempoDetenido;
                     const horas = Math.floor(tiempoPausado / 3600);
                     const minutos = Math.floor((tiempoPausado % 3600) / 60);
                     const segundos = Math.floor(tiempoPausado % 60);
                     estado = `<span class="${peticion.estado}">${horas}h ${minutos}m ${segundos}s</span>`;
                 } else {
-                    // Si no está pausada, mostrar el tiempo restante o el retraso
                     if (peticion.estado === "a-tiempo" && diferencia > 0) {
                         const horas = Math.floor(diferencia / 3600);
                         const minutos = Math.floor((diferencia % 3600) / 60);
                         const segundos = Math.floor(diferencia % 60);
                         estado = `<span class="a-tiempo">${horas}h ${minutos}m ${segundos}s</span>`;
-                        peticion.tiempoRestante = diferencia; // Guardar el tiempo restante
+                        peticion.tiempoRestante = diferencia;
                     } else if (peticion.estado === "retrasado") {
                         const retraso = Math.abs(diferencia);
                         const horas = Math.floor(retraso / 3600);
                         const minutos = Math.floor((retraso % 3600) / 60);
                         const segundos = Math.floor(retraso % 60);
                         estado = `<span class="retrasado">${horas}h ${minutos}m ${segundos}s</span>`;
-                        peticion.tiempoDetenido = retraso; // Guardar el retraso
+                        peticion.tiempoDetenido = retraso;
                     }
                 }
 
-                // Crear fila para cada petición
                 const fila = `
                     <tr>
                         <td>${formatearFechaHora(peticion.horaSolicitud)}</td>
@@ -187,10 +174,9 @@
                         <td>${horaSalida.toLocaleDateString()}</td>
                         <td>${horaSalida.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
                         <td>${estado}</td>
-                        <td><input type="checkbox" id="pausar-${index}" ${peticion.pausado ? "checked" : ""} onclick="pausarPeticion(${index})"></td>
                     </tr>
                 `;
-                tabla.innerHTML += fila; // Agregar la fila a la tabla
+                tabla.innerHTML += fila;
             });
         }
 
@@ -200,29 +186,8 @@
             return new Date(fecha).toLocaleString('es-ES', options);
         }
 
-        // Función para pausar la petición
-        function pausarPeticion(index) {
-            const peticion = peticiones[index];
-            const ahora = new Date();
-
-            if (peticion.pausado) {
-                // Si está pausado, no hacer nada más
-                if (peticion.estado === "a-tiempo") {
-                    peticion.tiempoRestante += Math.floor((ahora - peticion.tiempoInicioPausa) / 1000); // Actualizar el tiempo restante
-                } else if (peticion.estado === "retrasado") {
-                    peticion.tiempoDetenido += Math.floor((ahora - peticion.tiempoInicioPausa) / 1000); // Actualizar el tiempo de retraso
-                }
-            } else {
-                // Cuando se pausa, guarda la hora de inicio del paro
-                peticion.tiempoInicioPausa = ahora.getTime();
-            }
-
-            peticion.pausado = !peticion.pausado; // Cambiar el estado de pausado
-            actualizarPeticiones(); // Actualizar la tabla
-        }
-
-        // Actualizar la tabla cada segundo
-        setInterval(actualizarPeticiones, 1000);
+        // Iniciar la escucha de cambios en tiempo real
+        escucharPeticiones();
 
         // Función para actualizar la hora y fecha actual
         function actualizarReloj() {
@@ -231,7 +196,6 @@
             document.getElementById('fecha-hoy').textContent = `${new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(ahora)}`;
         }
 
-        // Llamar a la función para actualizar el reloj cada segundo
         setInterval(actualizarReloj, 1000);
         actualizarReloj(); // Ejecutar una vez al inicio
     </script>
