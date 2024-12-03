@@ -102,6 +102,25 @@
     <script>
         let peticiones = [];
 
+        // Guardar en localStorage
+        function guardarEnLocalStorage() {
+            localStorage.setItem('peticiones', JSON.stringify(peticiones));
+        }
+
+        // Cargar desde localStorage
+        function cargarDesdeLocalStorage() {
+            const datosGuardados = localStorage.getItem('peticiones');
+            if (datosGuardados) {
+                peticiones = JSON.parse(datosGuardados);
+                peticiones.forEach(peticion => {
+                    peticion.horaSolicitud = new Date(peticion.horaSolicitud);
+                    peticion.salida = new Date(peticion.salida);
+                });
+                ordenarPeticiones();
+                actualizarPeticiones();
+            }
+        }
+
         // Leer el archivo Excel cargado
         document.getElementById('file-input').addEventListener('change', function(event) {
             const file = event.target.files[0];
@@ -115,19 +134,18 @@
                 const sheet = workbook.Sheets[sheetName];
                 const jsonData = XLSX.utils.sheet_to_json(sheet);
 
-                console.log('Datos cargados:', jsonData); // Verifica si los datos están correctamente cargados
-
                 peticiones = jsonData.map(peticion => ({
                     ...peticion,
                     horaSolicitud: new Date(peticion.horaSolicitud),
                     salida: new Date(peticion.salida),
-                    tiempoRestante: (new Date(peticion.salida) - new Date()) / 1000, // Calcular tiempo restante en segundos
+                    tiempoRestante: (new Date(peticion.salida) - new Date()) / 1000,
                     tiempoDetenido: peticion.tiempoDetenido || 0,
                     pausado: peticion.pausado || false,
                     tiempoPausadoOriginal: peticion.tiempoPausadoOriginal || 0
                 }));
                 ordenarPeticiones();
-                actualizarPeticiones(); // Actualizar la tabla
+                actualizarPeticiones();
+                guardarEnLocalStorage();
             };
             reader.readAsBinaryString(file);
         });
@@ -151,132 +169,31 @@
                 salida: horaSalida.toISOString(),
                 estado,
                 pausado: false,
-                tiempoRestante: (horaSalida - new Date()) / 1000, // Tiempo restante en segundos
+                tiempoRestante: (horaSalida - new Date()) / 1000,
                 tiempoDetenido: 0,
                 tiempoInicioPausa: 0,
-                tiempoPausadoOriginal: 0, // Guardar el valor original al pausar
+                tiempoPausadoOriginal: 0,
             });
 
             ordenarPeticiones();
             document.getElementById("form-peticion").reset();
             actualizarPeticiones();
+            guardarEnLocalStorage();
         }
 
-        function ordenarPeticiones() {
-            peticiones.sort((a, b) => {
-                if (a.estado === "retrasado" && b.estado !== "retrasado") return -1;
-                if (b.estado === "retrasado" && a.estado !== "retrasado") return 1;
-
-                if (a.estado === "a-tiempo" && b.estado !== "a-tiempo") return 1;
-                if (b.estado === "a-tiempo" && a.estado !== "a-tiempo") return -1;
-
-                if (a.estado === "retrasado" && b.estado === "retrasado") {
-                    return b.tiempoDetenido - a.tiempoDetenido;
-                }
-                return a.tiempoRestante - b.tiempoRestante;
-            });
-
-            const pausadas = peticiones.filter(peticion => peticion.pausado);
-            const noPausadas = peticiones.filter(peticion => !peticion.pausado);
-            peticiones.length = 0;
-            peticiones.push(...noPausadas, ...pausadas);
-        }
-
-        function actualizarPeticiones() {
-            const tabla = document.getElementById("tabla-peticiones");
-            tabla.innerHTML = "";
+        function actualizarReloj() {
             const ahora = new Date();
-
-            peticiones.forEach((peticion, index) => {
-                const horaSalida = new Date(peticion.salida);
-                let diferencia = (horaSalida - ahora) / 1000; // Calcular diferencia en segundos
-
-                // Si la petición está pausada, no actualizamos el tiempo
-                if (!peticion.pausado) {
-                    if (horaSalida <= ahora) {
-                        peticion.estado = "retrasado";
-                    } else {
-                        peticion.estado = "a-tiempo";
-                    }
-                }
-
-                let estado;
-                if (peticion.pausado) {
-                    const tiempoPausado = peticion.tiempoPausadoOriginal ? peticion.tiempoPausadoOriginal : peticion.tiempoRestante;
-                    const horas = Math.floor(tiempoPausado / 3600);
-                    const minutos = Math.floor((tiempoPausado % 3600) / 60);
-                    const segundos = Math.floor(tiempoPausado % 60);
-                    estado = `<span class="${peticion.estado}">${horas}h ${minutos}m ${segundos}s</span>`;
-                } else {
-                    if (peticion.estado === "a-tiempo" && diferencia > 0) {
-                        const horas = Math.floor(diferencia / 3600);
-                        const minutos = Math.floor((diferencia % 3600) / 60);
-                        const segundos = Math.floor(diferencia % 60);
-                        estado = `<span class="a-tiempo">${horas}h ${minutos}m ${segundos}s</span>`;
-                        peticion.tiempoRestante = diferencia;
-                    } else if (peticion.estado === "retrasado") {
-                        const retraso = Math.abs(diferencia);
-                        const horas = Math.floor(retraso / 3600);
-                        const minutos = Math.floor((retraso % 3600) / 60);
-                        const segundos = Math.floor(retraso % 60);
-                        estado = `<span class="retrasado">${horas}h ${minutos}m ${segundos}s</span>`;
-                        peticion.tiempoDetenido = retraso;
-                    }
-                }
-
-                const fila = `
-                    <tr>
-                        <td>${formatearFechaHora(peticion.horaSolicitud)}</td>
-                        <td>${peticion.solicitante}</td>
-                        <td>${peticion.solicitado}</td>
-                        <td>${peticion.descripcion}</td>
-                        <td>${horaSalida.toLocaleDateString()}</td>
-                        <td>${horaSalida.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
-                        <td>${estado}</td>
-                        <td><input type="checkbox" id="pausar-${index}" ${peticion.pausado ? "disabled" : ""} ${peticion.pausado ? "checked" : ""} onclick="pausarPeticion(${index})"></td>
-                    </tr>
-                `;
-                tabla.innerHTML += fila;
-            });
+            document.getElementById("hora").textContent = ahora.toLocaleTimeString();
+            document.getElementById("fecha-hoy").textContent = ahora.toLocaleDateString();
         }
 
-        function formatearFechaHora(fecha) {
-            const options = { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true };
-            return new Date(fecha).toLocaleString('es-ES', options);
-        }
-
-        function pausarPeticion(index) {
-            const peticion = peticiones[index];
-            const ahora = new Date();
-
-            if (peticion.pausado) {
-                const tiempoPausado = (ahora - peticion.tiempoInicioPausa) / 1000;
-                if (peticion.estado === "a-tiempo") {
-                    peticion.tiempoRestante += tiempoPausado;
-                } else if (peticion.estado === "retrasado") {
-                    peticion.tiempoDetenido += tiempoPausado;
-                }
-            } else {
-                peticion.tiempoPausadoOriginal = peticion.estado === "a-tiempo" ? peticion.tiempoRestante : peticion.tiempoDetenido;
-                peticion.tiempoInicioPausa = ahora.getTime();
-            }
-
-            peticion.pausado = !peticion.pausado;
-            ordenarPeticiones();
-            actualizarPeticiones();
-        }
-
-        setInterval(actualizarPeticiones, 1000);
         setInterval(actualizarReloj, 1000);
-        actualizarReloj();
 
-        // Función para guardar el archivo Excel
-        function guardarComoExcel() {
-            const ws = XLSX.utils.json_to_sheet(peticiones);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Peticiones");
-            XLSX.writeFile(wb, "Peticiones.xlsx");
-        }
+        // Inicializar datos al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            cargarDesdeLocalStorage();
+            actualizarReloj();
+        });
     </script>
 </body>
 </html>
