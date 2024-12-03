@@ -53,9 +53,8 @@
         <span id="hora"></span>
     </div>
     <div class="fecha">
-    <span id="fecha-hoy"></span> 
+        <span id="fecha-hoy"></span>
     </div>
-
 
     <!-- Formulario de entrada para peticiones -->
     <div class="form-container" id="formulario-peticion">
@@ -267,24 +266,30 @@
             actualizarPeticiones();
         }
 
-        // Función para actualizar el reloj (hora y fecha en formato completo)
-    function actualizarReloj() {
-        const ahora = new Date();
+        setInterval(actualizarPeticiones, 1000);
+        setInterval(actualizarReloj, 1000);
+        actualizarReloj();
 
-        // Formatear la fecha en el formato: Día, dd de mes de yyyy
-        const opcionesFecha = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-        const fecha = ahora.toLocaleDateString('es-ES', opcionesFecha);
+       function actualizarReloj() {
+    const hora = new Date();
+    // Formatear la hora (sin cambios)
+    document.getElementById('hora').textContent = hora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-        // Formatear la hora en formato hh:mm:ss
-        const hora = ahora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    // Formatear la fecha
+    const opciones = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
+    const fechaFormateada = hora.toLocaleDateString('es-ES', opciones);
+    
+    // Reemplazar el texto de la fecha en el formato deseado (ejemplo: martes 03 de diciembre de 2024)
+    document.getElementById('fecha-hoy').textContent = fechaFormateada;
+}
 
-        // Actualizar el reloj con la hora
-        document.getElementById("hora").textContent = hora;
-        document.getElementById("fecha-hoy").textContent = fecha; // Actualiza la fecha
-    }
-
-    setInterval(actualizarPeticiones, 1000); // Actualiza las peticiones cada segundo
-    setInterval(actualizarReloj, 1000); // Actualiza el reloj cada segundo
-</script>
+        // Función para guardar el archivo Excel
+        function guardarComoExcel() {
+            const ws = XLSX.utils.json_to_sheet(peticiones);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Peticiones");
+            XLSX.writeFile(wb, "Peticiones.xlsx");
+        }
+    </script>
 </body>
 </html>
