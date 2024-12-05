@@ -44,7 +44,7 @@
 </head>
 <body>
     <h1 style="color: #324a9a;">Seguimiento Peticiones</h1>
-    
+
     <!-- Reloj y fecha -->
     <div class="reloj">
         <span id="hora"></span>
@@ -69,16 +69,11 @@
             <label for="fecha">Fecha y Hora:</label>
             <input type="datetime-local" id="fecha" required><br><br>
 
-            <button type="submit" style="font-size: 15px; padding: 5px 50px;">Agegar</button>
+            <button type="submit" style="font-size: 15px; padding: 5px 50px;">Agregar</button>
         </form>
     </div>
-
-    <!-- Cargar archivo Excel -->
-    <input type="file" id="file-input" accept=".xlsx" />
-
-    <!-- Botón para guardar como Excel -->
-    <button onclick="guardarComoExcel()">Guardar (xlsx)</button>
-
+    
+    <!-- Tabla general de peticiones -->
     <table>
         <thead>
             <tr>
@@ -97,37 +92,7 @@
     </table>
 
     <script>
-        let peticiones = [];
-
-        // Leer el archivo Excel cargado
-        document.getElementById('file-input').addEventListener('change', function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const data = e.target.result;
-                const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0];
-                const sheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(sheet);
-
-                console.log('Datos cargados:', jsonData); // Verifica si los datos están correctamente cargados
-
-                peticiones = jsonData.map(peticion => ({
-                    ...peticion,
-                    horaSolicitud: new Date(peticion.horaSolicitud),
-                    salida: new Date(peticion.salida),
-                    tiempoRestante: (new Date(peticion.salida) - new Date()) / 1000, // Calcular tiempo restante en segundos
-                    tiempoDetenido: peticion.tiempoDetenido || 0,
-                    pausado: peticion.pausado || false,
-                    tiempoPausadoOriginal: peticion.tiempoPausadoOriginal || 0
-                }));
-                ordenarPeticiones();
-                actualizarPeticiones(); // Actualizar la tabla
-            };
-            reader.readAsBinaryString(file);
-        });
+        let peticiones = JSON.parse(localStorage.getItem('peticiones')) || [];
 
         function agregarPeticion(event) {
             event.preventDefault();
@@ -140,7 +105,7 @@
 
             let estado = horaSalida > new Date() ? "a-tiempo" : "retrasado";
 
-            peticiones.push({
+            const nuevaPeticion = {
                 solicitante,
                 solicitado,
                 descripcion,
@@ -152,7 +117,10 @@
                 tiempoDetenido: 0,
                 tiempoInicioPausa: 0,
                 tiempoPausadoOriginal: 0, // Guardar el valor original al pausar
-            });
+            };
+
+            peticiones.push(nuevaPeticion);
+            localStorage.setItem('peticiones', JSON.stringify(peticiones)); // Guardar en localStorage
 
             ordenarPeticiones();
             document.getElementById("form-peticion").reset();
@@ -258,6 +226,7 @@
                 peticion.tiempoInicioPausa = ahora.getTime();
             }
             peticion.pausado = !peticion.pausado;
+            localStorage.setItem('peticiones', JSON.stringify(peticiones)); // Guardar en localStorage
             ordenarPeticiones();
             actualizarPeticiones();
         }
@@ -266,25 +235,13 @@
         setInterval(actualizarReloj, 1000);
         actualizarReloj();
 
-       function actualizarReloj() {
-    const hora = new Date();
-    // Formatear la hora (sin cambios)
-    document.getElementById('hora').textContent = hora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        function actualizarReloj() {
+            const hora = new Date();
+            document.getElementById('hora').textContent = hora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    // Formatear la fecha
-    const opciones = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
-    const fechaFormateada = hora.toLocaleDateString('es-ES', opciones);
-    
-    // Reemplazar el texto de la fecha en el formato deseado (ejemplo: martes 03 de diciembre de 2024)
-    document.getElementById('fecha-hoy').textContent = fechaFormateada;
-}
-
-        // Función para guardar el archivo Excel
-        function guardarComoExcel() {
-            const ws = XLSX.utils.json_to_sheet(peticiones);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Peticiones");
-            XLSX.writeFile(wb, "Peticiones.xlsx");
+            const opciones = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
+            const fechaFormateada = hora.toLocaleDateString('es-ES', opciones);
+            document.getElementById('fecha-hoy').textContent = fechaFormateada;
         }
     </script>
 </body>
