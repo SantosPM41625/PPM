@@ -1,248 +1,167 @@
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Peticiones PM</title>
-        <link rel="icon" href="favicon.png" type="image/png">
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                text-align: center;
-                margin: 0px;
-            }
-            table {
-                width: 90%;
-                margin: 0 auto;
-                border-collapse: collapse;
-            }
-            th, td {
-                border: 1px solid #ddd;
-                padding: 3px;
-            }
-            th {
-                background-color: #f4f4f4;
-            }
-            .retrasado {
-                color: red;
-            }
-            .a-tiempo {
-                color: green;
-            }
-            .form-container {
-                margin-bottom: 10px;
-            }
-            .reloj {
-                font-size: 45px;
-            }
-            .fecha {
-                font-size: 18px;
-                margin-top: 0px;
-            }
-        </style>
-    </head>
-    <body>
-        <h1 style="color: #324a9a;">Seguimiento Peticiones</h1>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peticiones PM</title>
+    <link rel="icon" href="favicon.png" type="image/png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script type="module">
+        // Importar funciones de Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 
-        <!-- Reloj y fecha -->
-        <div class="reloj">
-            <span id="hora"></span>
-        </div>
-        <div class="fecha">
-            <span id="fecha-hoy"></span>
-        </div>
+        // Configuración de Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyDQO2TmV4PdDy51VLQtupOlKkVN0jGCXBI",
+            authDomain: "santos-b9a94.firebaseapp.com",
+            databaseURL: "https://santos-b9a94-default-rtdb.firebaseio.com",
+            projectId: "santos-b9a94",
+            storageBucket: "santos-b9a94.firebasestorage.app",
+            messagingSenderId: "492660727320",
+            appId: "1:492660727320:web:9a6e4c09c218a5bed22d6d",
+            measurementId: "G-WK07Q4KDDH"
+        };
 
-        <!-- Formulario de entrada para peticiones -->
-        <div class="form-container" id="formulario-peticion">
-            <h2></h2>
-            <form id="form-peticion" onsubmit="agregarPeticion(event)">
-                <label for="solicitante">Solicitante:</label>
-                <input type="text" id="solicitante" required><br><br>
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
 
-                <label for="solicitado">Solicitado:</label>
-                <input type="text" id="solicitado" required><br><br>
+        // Función para agregar una petición
+        function agregarPeticion(event) {
+            event.preventDefault();
+            const solicitante = document.getElementById("solicitante").value;
+            const solicitado = document.getElementById("solicitado").value;
+            const descripcion = document.getElementById("descripcion").value;
+            const fecha = document.getElementById("fecha").value;
+            const horaSolicitud = new Date();
+            const horaSalida = new Date(fecha);
 
-                <label for="descripcion">Descripción:</label>
-                <input type="text" id="descripcion" required><br><br>
+            let estado = horaSalida > new Date() ? "a-tiempo" : "retrasado";
 
-                <label for="fecha">Fecha y Hora:</label>
-                <input type="datetime-local" id="fecha" required><br><br>
+            const nuevaPeticion = {
+                solicitante,
+                solicitado,
+                descripcion,
+                horaSolicitud: horaSolicitud.toISOString(),
+                salida: horaSalida.toISOString(),
+                estado,
+                pausado: false,
+                tiempoRestante: (horaSalida - new Date()) / 1000, // Tiempo restante en segundos
+                tiempoDetenido: 0,
+                tiempoInicioPausa: 0,
+                tiempoPausadoOriginal: 0,
+            };
 
-                <button type="submit" style="font-size: 15px; padding: 5px 50px;">Agegar</button>
-            </form>
-        </div>
-        
-        <!-- Tabla general de peticiones -->
-        <table>
-            <thead>
-                <tr>
-                    <th>Hora y Día Solicitado</th>
-                    <th>Solicitante</th>
-                    <th>Solicitado</th>
-                    <th>Descripción</th>
-                    <th>Día Necesario</th>
-                    <th>Hora Necesaria</th>
-                    <th>Estado</th>
-                    <th>Pausar</th>
-                </tr>
-            </thead>
-            <tbody id="tabla-peticiones">
-            </tbody>
-        </table>
+            // Guardar la petición en Firebase
+            const peticionesRef = ref(database, 'peticiones');
+            const nuevaPeticionRef = ref(peticionesRef);
+            set(nuevaPeticionRef, nuevaPeticion);
 
-        <script>
-            let peticiones = [];
+            actualizarPeticiones();
+            document.getElementById("form-peticion").reset();
+        }
 
-            function agregarPeticion(event) {
-                event.preventDefault();
-                const solicitante = document.getElementById("solicitante").value;
-                const solicitado = document.getElementById("solicitado").value;
-                const descripcion = document.getElementById("descripcion").value;
-                const fecha = document.getElementById("fecha").value;
-                const horaSolicitud = new Date();
-                const horaSalida = new Date(fecha);
+        // Función para actualizar las peticiones desde Firebase
+        function actualizarPeticiones() {
+            const tabla = document.getElementById("tabla-peticiones");
+            tabla.innerHTML = "";
 
-                let estado = horaSalida > new Date() ? "a-tiempo" : "retrasado";
+            const peticionesRef = ref(database, 'peticiones');
+            onValue(peticionesRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    Object.values(data).forEach(peticion => {
+                        const horaSalida = new Date(peticion.salida);
+                        const ahora = new Date();
+                        let diferencia = (horaSalida - ahora) / 1000; // Calcular diferencia en segundos
 
-                peticiones.push({
-                    solicitante,
-                    solicitado,
-                    descripcion,
-                    horaSolicitud,
-                    salida: horaSalida.toISOString(),
-                    estado,
-                    pausado: false,
-                    tiempoRestante: (horaSalida - new Date()) / 1000, // Tiempo restante en segundos
-                    tiempoDetenido: 0,
-                    tiempoInicioPausa: 0,
-                    tiempoPausadoOriginal: 0, // Guardar el valor original al pausar
-                });
-
-                ordenarPeticiones();
-                document.getElementById("form-peticion").reset();
-                actualizarPeticiones();
-            }
-
-            function ordenarPeticiones() {
-                peticiones.sort((a, b) => {
-                    if (a.estado === "retrasado" && b.estado !== "retrasado") return -1;
-                    if (b.estado === "retrasado" && a.estado !== "retrasado") return 1;
-
-                    if (a.estado === "a-tiempo" && b.estado !== "a-tiempo") return 1;
-                    if (b.estado === "a-tiempo" && a.estado !== "a-tiempo") return -1;
-
-                    if (a.estado === "retrasado" && b.estado === "retrasado") {
-                        return b.tiempoDetenido - a.tiempoDetenido;
-                    }
-                    return a.tiempoRestante - b.tiempoRestante;
-                });
-
-                const pausadas = peticiones.filter(peticion => peticion.pausado);
-                const noPausadas = peticiones.filter(peticion => !peticion.pausado);
-                peticiones.length = 0;
-                peticiones.push(...noPausadas, ...pausadas);
-            }
-
-            function actualizarPeticiones() {
-                const tabla = document.getElementById("tabla-peticiones");
-                tabla.innerHTML = "";
-                const ahora = new Date();
-
-                peticiones.forEach((peticion, index) => {
-                    const horaSalida = new Date(peticion.salida);
-                    let diferencia = (horaSalida - ahora) / 1000; // Calcular diferencia en segundos
-
-                    // Si la petición está pausada, no actualizamos el tiempo
-                    if (!peticion.pausado) {
-                        if (horaSalida <= ahora) {
-                            peticion.estado = "retrasado";
+                        let estado;
+                        if (peticion.pausado) {
+                            const tiempoPausado = peticion.tiempoPausadoOriginal ? peticion.tiempoPausadoOriginal : peticion.tiempoRestante;
+                            const horas = Math.floor(tiempoPausado / 3600);
+                            const minutos = Math.floor((tiempoPausado % 3600) / 60);
+                            const segundos = Math.floor(tiempoPausado % 60);
+                            estado = `<span class="${peticion.estado}">${horas}h ${minutos}m ${segundos}s</span>`;
                         } else {
-                            peticion.estado = "a-tiempo";
+                            if (peticion.estado === "a-tiempo" && diferencia > 0) {
+                                const horas = Math.floor(diferencia / 3600);
+                                const minutos = Math.floor((diferencia % 3600) / 60);
+                                const segundos = Math.floor(diferencia % 60);
+                                estado = `<span class="a-tiempo">${horas}h ${minutos}m ${segundos}s</span>`;
+                                peticion.tiempoRestante = diferencia;
+                            } else if (peticion.estado === "retrasado") {
+                                const retraso = Math.abs(diferencia);
+                                const horas = Math.floor(retraso / 3600);
+                                const minutos = Math.floor((retraso % 3600) / 60);
+                                const segundos = Math.floor(retraso % 60);
+                                estado = `<span class="retrasado">${horas}h ${minutos}m ${segundos}s</span>`;
+                                peticion.tiempoDetenido = retraso;
+                            }
                         }
-                    }
 
-                    let estado;
-                    if (peticion.pausado) {
-                        const tiempoPausado = peticion.tiempoPausadoOriginal ? peticion.tiempoPausadoOriginal : peticion.tiempoRestante;
-                        const horas = Math.floor(tiempoPausado / 3600);
-                        const minutos = Math.floor((tiempoPausado % 3600) / 60);
-                        const segundos = Math.floor(tiempoPausado % 60);
-                        estado = `<span class="${peticion.estado}">${horas}h ${minutos}m ${segundos}s</span>`;
-                    } else {
-                        if (peticion.estado === "a-tiempo" && diferencia > 0) {
-                            const horas = Math.floor(diferencia / 3600);
-                            const minutos = Math.floor((diferencia % 3600) / 60);
-                            const segundos = Math.floor(diferencia % 60);
-                            estado = `<span class="a-tiempo">${horas}h ${minutos}m ${segundos}s</span>`;
-                            peticion.tiempoRestante = diferencia;
-                        } else if (peticion.estado === "retrasado") {
-                            const retraso = Math.abs(diferencia);
-                            const horas = Math.floor(retraso / 3600);
-                            const minutos = Math.floor((retraso % 3600) / 60);
-                            const segundos = Math.floor(retraso % 60);
-                            estado = `<span class="retrasado">${horas}h ${minutos}m ${segundos}s</span>`;
-                            peticion.tiempoDetenido = retraso;
-                        }
-                    }
-
-                    const fila = `
-                        <tr>
-                            <td>${formatearFechaHora(peticion.horaSolicitud)}</td>
-                            <td>${peticion.solicitante}</td>
-                            <td>${peticion.solicitado}</td>
-                            <td>${peticion.descripcion}</td>
-                            <td>${horaSalida.toLocaleDateString()}</td>
-                            <td>${horaSalida.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
-                            <td>${estado}</td>
-                            <td><input type="checkbox" id="pausar-${index}" ${peticion.pausado ? "disabled" : ""} ${peticion.pausado ? "checked" : ""} onclick="pausarPeticion(${index})"></td>
-                        </tr>
-                    `;
-                    tabla.innerHTML += fila;
-                });
-            }
-
-            function formatearFechaHora(fecha) {
-                const options = { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true };
-                return new Date(fecha).toLocaleString('es-ES', options);
-            }
-
-            function pausarPeticion(index) {
-                const peticion = peticiones[index];
-                const ahora = new Date();
-
-                if (peticion.pausado) {
-                    const tiempoPausado = (ahora - peticion.tiempoInicioPausa) / 1000;
-                    if (peticion.estado === "a-tiempo") {
-                        peticion.tiempoRestante += tiempoPausado;
-                    } else if (peticion.estado === "retrasado") {
-                        peticion.tiempoDetenido += tiempoPausado;
-                    }
-                } else {
-                    peticion.tiempoPausadoOriginal = peticion.estado === "a-tiempo" ? peticion.tiempoRestante : peticion.tiempoDetenido;
-                    peticion.tiempoInicioPausa = ahora.getTime();
+                        const fila = `
+                            <tr>
+                                <td>${formatearFechaHora(peticion.horaSolicitud)}</td>
+                                <td>${peticion.solicitante}</td>
+                                <td>${peticion.solicitado}</td>
+                                <td>${peticion.descripcion}</td>
+                                <td>${horaSalida.toLocaleDateString()}</td>
+                                <td>${horaSalida.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                                <td>${estado}</td>
+                            </tr>
+                        `;
+                        tabla.innerHTML += fila;
+                    });
                 }
-                peticion.pausado = !peticion.pausado;
-                ordenarPeticiones();
-                actualizarPeticiones();
-            }
+            });
+        }
 
-            setInterval(actualizarPeticiones, 1000);
-            setInterval(actualizarReloj, 1000);
-            actualizarReloj();
+        function formatearFechaHora(fecha) {
+            const options = { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true };
+            return new Date(fecha).toLocaleString('es-ES', options);
+        }
 
-           function actualizarReloj() {
-        const hora = new Date();
-        // Formatear la hora (sin cambios)
-        document.getElementById('hora').textContent = hora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setInterval(actualizarPeticiones, 1000);
+    </script>
+</head>
+<body>
+    <h1 style="color: #324a9a;">Seguimiento Peticiones</h1>
 
-        // Formatear la fecha
-        const opciones = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
-        const fechaFormateada = hora.toLocaleDateString('es-ES', opciones);
+    <div class="form-container" id="formulario-peticion">
+        <h2></h2>
+        <form id="form-peticion" onsubmit="agregarPeticion(event)">
+            <label for="solicitante">Solicitante:</label>
+            <input type="text" id="solicitante" required><br><br>
 
-        // Reemplazar el texto de la fecha en el formato deseado (ejemplo: martes 03 de diciembre de 2024)
-        document.getElementById('fecha-hoy').textContent = fechaFormateada;
-    }
-        </script>
-    </body>
-    </html>
+            <label for="solicitado">Solicitado:</label>
+            <input type="text" id="solicitado" required><br><br>
+
+            <label for="descripcion">Descripción:</label>
+            <input type="text" id="descripcion" required><br><br>
+
+            <label for="fecha">Fecha y Hora:</label>
+            <input type="datetime-local" id="fecha" required><br><br>
+
+            <button type="submit" style="font-size: 15px; padding: 5px 50px;">Agregar</button>
+        </form>
+    </div>
+    
+    <!-- Tabla general de peticiones -->
+    <table>
+        <thead>
+            <tr>
+                <th>Hora y Día Solicitado</th>
+                <th>Solicitante</th>
+                <th>Solicitado</th>
+                <th>Descripción</th>
+                <th>Día Necesario</th>
+                <th>Hora Necesaria</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody id="tabla-peticiones">
+        </tbody>
+    </table>
+</body>
+</html>
