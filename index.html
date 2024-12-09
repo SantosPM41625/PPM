@@ -126,7 +126,10 @@
             const horaSolicitud = new Date();
             const horaSalida = new Date(fecha);
 
-            let estado = horaSalida > new Date() ? "a-tiempo" : "retrasado";
+            let estado = "a-tiempo"; // Asumimos que está a tiempo por defecto
+            if (horaSalida < new Date()) {
+                estado = "retrasado"; // Si la hora de salida ya pasó, se marca como retrasado
+            }
 
             const nuevaPeticion = {
                 solicitante,
@@ -163,30 +166,41 @@
                 return a.tiempoRestante - b.tiempoRestante;
             });
 
-            // Dividir las peticiones en pausadas y no pausadas
             const pausadas = peticiones.filter(peticion => peticion.pausado);
             const noPausadas = peticiones.filter(peticion => !peticion.pausado);
-
-            // Unir las listas de no pausadas y pausadas
             peticiones.length = 0;
             peticiones.push(...noPausadas, ...pausadas);
         }
 
-        // Función para actualizar las peticiones desde Firebase
+        // Función para actualizar las peticiones
         function actualizarPeticiones() {
-            ordenarPeticiones(); // Ordenar antes de mostrar
-
             const tabla = document.getElementById("tabla-peticiones");
             tabla.innerHTML = "";
+            const ahora = new Date();
 
-            // Mostrar las peticiones ordenadas
-            peticiones.forEach(peticion => {
-                mostrarPeticion(peticion);
+            peticiones.forEach((peticion, index) => {
+                const horaSalida = new Date(peticion.salida);
+                let diferencia = (horaSalida - ahora) / 1000; // Calcular diferencia en segundos
+
+                // Si la petición está pausada, no actualizamos el tiempo
+                if (!peticion.pausado) {
+                    if (horaSalida <= ahora) {
+                        peticion.estado = "retrasado";
+                    } else {
+                        peticion.estado = "a-tiempo";
+                    }
+                }
+
+                // Ordenar peticiones después de actualizar el estado
+                ordenarPeticiones();
+
+                // Mostrar la petición
+                mostrarPeticion(peticion, index);
             });
         }
 
         // Función para mostrar una petición en la tabla
-        function mostrarPeticion(peticion) {
+        function mostrarPeticion(peticion, index) {
             const tabla = document.getElementById("tabla-peticiones");
             const horaSalida = new Date(peticion.salida);
             let estado;
@@ -214,6 +228,8 @@
                     const segundos = Math.floor(retraso % 60);
                     estado = `<span class="retrasado">${horas}h ${minutos}m ${segundos}s</span>`;
                     peticion.tiempoDetenido = retraso;
+                } else {
+                    estado = `<span class="retrasado">Indeterminado</span>`; // Para el caso de undefined
                 }
             }
 
@@ -226,13 +242,13 @@
                     <td>${horaSalida.toLocaleDateString()}</td>
                     <td>${horaSalida.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
                     <td>${estado}</td>
-                    <td><input type="checkbox" id="pausar-${peticiones.indexOf(peticion)}" ${peticion.pausado ? "disabled" : ""} ${peticion.pausado ? "checked" : ""} onclick="pausarPeticion(${peticiones.indexOf(peticion)})"></td>
+                    <td><input type="checkbox" id="pausar-${index}" ${peticion.pausado ? "disabled" : ""} ${peticion.pausado ? "checked" : ""} onclick="pausarPeticion(${index})"></td>
                 </tr>
             `;
             tabla.innerHTML += fila;
         }
 
-        // Función para formatear fecha y hora
+      // Función para formatear fecha y hora
         function formatearFechaHora(fecha) {
             const options = { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true };
             return new Date(fecha).toLocaleString('es-ES', options);
