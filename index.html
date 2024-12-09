@@ -148,62 +148,88 @@
             document.getElementById("form-peticion").reset();
         }
 
+        // Función para ordenar las peticiones
+        function ordenarPeticiones() {
+            peticiones.sort((a, b) => {
+                if (a.estado === "retrasado" && b.estado !== "retrasado") return -1;
+                if (b.estado === "retrasado" && a.estado !== "retrasado") return 1;
+
+                if (a.estado === "a-tiempo" && b.estado !== "a-tiempo") return 1;
+                if (b.estado === "a-tiempo" && a.estado !== "a-tiempo") return -1;
+
+                if (a.estado === "retrasado" && b.estado === "retrasado") {
+                    return b.tiempoDetenido - a.tiempoDetenido;
+                }
+                return a.tiempoRestante - b.tiempoRestante;
+            });
+
+            // Dividir las peticiones en pausadas y no pausadas
+            const pausadas = peticiones.filter(peticion => peticion.pausado);
+            const noPausadas = peticiones.filter(peticion => !peticion.pausado);
+
+            // Unir las listas de no pausadas y pausadas
+            peticiones.length = 0;
+            peticiones.push(...noPausadas, ...pausadas);
+        }
+
         // Función para actualizar las peticiones desde Firebase
         function actualizarPeticiones() {
+            ordenarPeticiones(); // Ordenar antes de mostrar
+
             const tabla = document.getElementById("tabla-peticiones");
             tabla.innerHTML = "";
+
+            // Mostrar las peticiones ordenadas
+            peticiones.forEach(peticion => {
+                mostrarPeticion(peticion);
+            });
+        }
+
+        // Función para mostrar una petición en la tabla
+        function mostrarPeticion(peticion) {
+            const tabla = document.getElementById("tabla-peticiones");
+            const horaSalida = new Date(peticion.salida);
+            let estado;
             const ahora = new Date();
 
-            peticiones.forEach((peticion, index) => {
-                const horaSalida = new Date(peticion.salida);
-                let diferencia = (horaSalida - ahora) / 1000; // Calcular diferencia en segundos
+            let diferencia = (horaSalida - ahora) / 1000;
 
-                if (!peticion.pausado) {
-                    if (horaSalida <= ahora) {
-                        peticion.estado = "retrasado";
-                    } else {
-                        peticion.estado = "a-tiempo";
-                    }
+            if (peticion.pausado) {
+                const tiempoPausado = peticion.tiempoPausadoOriginal ? peticion.tiempoPausadoOriginal : peticion.tiempoRestante;
+                const horas = Math.floor(tiempoPausado / 3600);
+                const minutos = Math.floor((tiempoPausado % 3600) / 60);
+                const segundos = Math.floor(tiempoPausado % 60);
+                estado = `<span class="${peticion.estado}">${horas}h ${minutos}m ${segundos}s</span>`;
+            } else {
+                if (peticion.estado === "a-tiempo" && diferencia > 0) {
+                    const horas = Math.floor(diferencia / 3600);
+                    const minutos = Math.floor((diferencia % 3600) / 60);
+                    const segundos = Math.floor(diferencia % 60);
+                    estado = `<span class="a-tiempo">${horas}h ${minutos}m ${segundos}s</span>`;
+                    peticion.tiempoRestante = diferencia;
+                } else if (peticion.estado === "retrasado") {
+                    const retraso = Math.abs(diferencia);
+                    const horas = Math.floor(retraso / 3600);
+                    const minutos = Math.floor((retraso % 3600) / 60);
+                    const segundos = Math.floor(retraso % 60);
+                    estado = `<span class="retrasado">${horas}h ${minutos}m ${segundos}s</span>`;
+                    peticion.tiempoDetenido = retraso;
                 }
+            }
 
-                let estado;
-                if (peticion.pausado) {
-                    const tiempoPausado = peticion.tiempoPausadoOriginal ? peticion.tiempoPausadoOriginal : peticion.tiempoRestante;
-                    const horas = Math.floor(tiempoPausado / 3600);
-                    const minutos = Math.floor((tiempoPausado % 3600) / 60);
-                    const segundos = Math.floor(tiempoPausado % 60);
-                    estado = `<span class="${peticion.estado}">${horas}h ${minutos}m ${segundos}s</span>`;
-                } else {
-                    if (peticion.estado === "a-tiempo" && diferencia > 0) {
-                        const horas = Math.floor(diferencia / 3600);
-                        const minutos = Math.floor((diferencia % 3600) / 60);
-                        const segundos = Math.floor(diferencia % 60);
-                        estado = `<span class="a-tiempo">${horas}h ${minutos}m ${segundos}s</span>`;
-                        peticion.tiempoRestante = diferencia;
-                    } else if (peticion.estado === "retrasado") {
-                        const retraso = Math.abs(diferencia);
-                        const horas = Math.floor(retraso / 3600);
-                        const minutos = Math.floor((retraso % 3600) / 60);
-                        const segundos = Math.floor(retraso % 60);
-                        estado = `<span class="retrasado">${horas}h ${minutos}m ${segundos}s</span>`;
-                        peticion.tiempoDetenido = retraso;
-                    }
-                }
-
-                const fila = `
-                    <tr>
-                        <td>${formatearFechaHora(peticion.horaSolicitud)}</td>
-                        <td>${peticion.solicitante}</td>
-                        <td>${peticion.solicitado}</td>
-                        <td>${peticion.descripcion}</td>
-                        <td>${horaSalida.toLocaleDateString()}</td>
-                        <td>${horaSalida.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
-                        <td>${estado}</td>
-                        <td><input type="checkbox" id="pausar-${index}" ${peticion.pausado ? "disabled" : ""} ${peticion.pausado ? "checked" : ""} onclick="pausarPeticion(${index})"></td>
-                    </tr>
-                `;
-                tabla.innerHTML += fila;
-            });
+            const fila = `
+                <tr>
+                    <td>${formatearFechaHora(peticion.horaSolicitud)}</td>
+                    <td>${peticion.solicitante}</td>
+                    <td>${peticion.solicitado}</td>
+                    <td>${peticion.descripcion}</td>
+                    <td>${horaSalida.toLocaleDateString()}</td>
+                    <td>${horaSalida.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                    <td>${estado}</td>
+                    <td><input type="checkbox" id="pausar-${peticiones.indexOf(peticion)}" ${peticion.pausado ? "disabled" : ""} ${peticion.pausado ? "checked" : ""} onclick="pausarPeticion(${peticiones.indexOf(peticion)})"></td>
+                </tr>
+            `;
+            tabla.innerHTML += fila;
         }
 
         // Función para formatear fecha y hora
