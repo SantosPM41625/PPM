@@ -255,25 +255,21 @@
         }
 
         // Función para pausar y reanudar las peticiones
-        function pausarPeticion(index) {
-            const peticion = peticiones[index];
-            const ahora = new Date();
+        // Función para pausar las peticiones (sin opción de reanudar)
+function pausarPeticion(index) {
+    const peticion = peticiones[index];
+    
+    // Marcar la petición como pausada y no permitir quitar la pausa
+    if (!peticion.pausado) {
+        const ahora = new Date();
+        peticion.tiempoPausadoOriginal = peticion.estado === "a-tiempo" ? peticion.tiempoRestante : peticion.tiempoDetenido;
+        peticion.tiempoInicioPausa = ahora.getTime();
+        peticion.pausado = true; // Se marca como pausado
+        peticionesRef.set(peticiones); // Actualizamos Firebase
+        actualizarPeticiones(); // Actualizamos la vista
+    }
+}
 
-            if (peticion.pausado) {
-                const tiempoPausado = (ahora - peticion.tiempoInicioPausa) / 1000;
-                if (peticion.estado === "a-tiempo") {
-                    peticion.tiempoRestante += tiempoPausado;
-                } else if (peticion.estado === "retrasado") {
-                    peticion.tiempoDetenido += tiempoPausado;
-                }
-            } else {
-                peticion.tiempoPausadoOriginal = peticion.estado === "a-tiempo" ? peticion.tiempoRestante : peticion.tiempoDetenido;
-                peticion.tiempoInicioPausa = ahora.getTime();
-            }
-            peticion.pausado = !peticion.pausado;
-            peticionesRef.set(peticiones); // Actualizamos Firebase
-            actualizarPeticiones();
-        }
 
         // Función para sincronizar el reloj
         setInterval(actualizarPeticiones, 1000);
