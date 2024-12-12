@@ -132,18 +132,18 @@
             }
 
            const nuevaPeticion = {
-           solicitante,
-           solicitado,
-           descripcion,
-           horaSolicitud,
-           salida: horaSalida.toISOString(),
-           estado,
-           pausado: false,
-           tiempoRestante: (horaSalida - new Date()) / 1000,
-           tiempoDetenido: 0,
-           tiempoInicioPausa: 0,
-           tiempoPausadoOriginal: 0,
-           };
+    solicitante,
+    solicitado,
+    descripcion,
+    horaSolicitud: horaSolicitud.toISOString(), // Convertimos a string ISO para que sea compatible con Firebase
+    salida: horaSalida.toISOString(),
+    estado,
+    pausado: false,
+    tiempoRestante: (horaSalida - new Date()) / 1000,
+    tiempoDetenido: 0,
+    tiempoInicioPausa: 0,
+    tiempoPausadoOriginal: 0,
+};
 
             peticiones.push(nuevaPeticion);
             peticionesRef.set(peticiones); // Guardamos en Firebase
