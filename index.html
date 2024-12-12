@@ -131,19 +131,19 @@
                 estado = "retrasado"; // Si la hora de salida ya pasó, se marca como retrasado
             }
 
-            const nuevaPeticion = {
-                solicitante,
-                solicitado,
-                descripcion,
-                horaSolicitud,
-                salida: horaSalida.toISOString(),
-                estado,
-                pausado: false,
-                tiempoRestante: (horaSalida - new Date()) / 1000, // Tiempo restante en segundos
-                tiempoDetenido: 0,
-                tiempoInicioPausa: 0,
-                tiempoPausadoOriginal: 0, // Guardar el valor original al pausar
-            };
+           const nuevaPeticion = {
+           solicitante,
+           solicitado,
+           descripcion,
+           horaSolicitud,
+           salida: horaSalida.toISOString(),
+           estado,
+           pausado: false,
+           tiempoRestante: (horaSalida - new Date()) / 1000,
+           tiempoDetenido: 0,
+           tiempoInicioPausa: 0,
+           tiempoPausadoOriginal: 0,
+           };
 
             peticiones.push(nuevaPeticion);
             peticionesRef.set(peticiones); // Guardamos en Firebase
