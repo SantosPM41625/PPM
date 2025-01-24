@@ -288,41 +288,35 @@ function pausarPeticion(index) {
             actualizarPeticiones();
         });
 
-        // Variable para verificar si el usuario ha interactuado
+        // ---- FUNCIONALIDAD AÑADIDA ----
         let audioHabilitado = false;
+        const sonidoAlerta = new Audio('alerta.mp3');
 
-        // Cargar el audio
-        const sonidoAlerta = new Audio('alerta.mp3'); // Asegúrate de que alerta.mp3 esté en la misma carpeta que index.html
-
-        // Función para habilitar el audio tras la interacción inicial
         function habilitarAudio() {
             if (!audioHabilitado) {
-                sonidoAlerta.play().then(() => {
-                    console.log("Audio habilitado tras la interacción del usuario.");
-                    audioHabilitado = true; // Marcamos que el audio ya está habilitado
-                }).catch(err => {
-                    console.error("Error al habilitar el audio:", err);
-                });
+                sonidoAlerta.volume = 0; // Mute
+                sonidoAlerta.play()
+                    .then(() => {
+                        console.log("Audio cargado en silencio.");
+                        audioHabilitado = true;
+                    })
+                    .catch((err) => console.error("Error al cargar el audio:", err));
             }
         }
 
-        // Escuchar interacción inicial del usuario (clic o toque en cualquier parte del documento)
-        document.addEventListener('click', habilitarAudio, { once: true }); // Se ejecuta una sola vez
-        document.addEventListener('touchstart', habilitarAudio, { once: true });
+        document.addEventListener("click", habilitarAudio, { once: true });
+        document.addEventListener("touchstart", habilitarAudio, { once: true });
 
-        // Agregar alerta sonora para nuevas peticiones
-        peticionesRef.on('child_added', snapshot => {
+        peticionesRef.on("child_added", (snapshot) => {
             const nuevaPeticion = snapshot.val();
             peticiones.push(nuevaPeticion);
             actualizarPeticiones();
 
-            // Reproducir sonido de alerta si el audio está habilitado
             if (audioHabilitado) {
-                sonidoAlerta.play()
-                    .then(() => console.log('Sonido de alerta reproducido'))
-                    .catch(err => console.error('Error al reproducir el sonido:', err));
-            } else {
-                console.log("El audio no está habilitado. Esperando interacción del usuario.");
+                sonidoAlerta.volume = 1; // Volumen normal
+                sonidoAlerta.play().catch((err) =>
+                    console.error("Error al reproducir el sonido:", err)
+                );
             }
         });
     </script>
